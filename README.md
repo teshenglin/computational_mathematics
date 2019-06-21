@@ -1,5 +1,6 @@
 # computational_mathematics
 
+### Installation of Julia and Jupyter notebook
 
 ### Monte Carlo method
 
@@ -12,3 +13,5 @@
 ### Power method
 
 ### Root finding
+
+### Numerical Integration
