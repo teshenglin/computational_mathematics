@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from random import sample 
 
-def OU_forward(beta, sigma, T, N, M):
+def OU_forward(beta, sigma, mu_0, sigma_0, theo_mean, theo_std, T, N, M):
     dt = T/M
     time = np.linspace(0, T, M+1)
 
@@ -10,7 +10,7 @@ def OU_forward(beta, sigma, T, N, M):
     X_0 = np.zeros((N, M+1))
 
     # sample initial condition from N(0, 1)
-    X_0[:,0] = np.random.randn(N)
+    X_0[:,0] = np.random.randn(N)*sigma_0 + mu_0
 
     # iteration
     for ii in range(M):
@@ -24,8 +24,8 @@ def OU_forward(beta, sigma, T, N, M):
     y = np.linspace(-10, 10, 100)
 
     # at t=0
-    height_0 = 1.0/np.sqrt(2.0*np.pi)
-    pdf_0 = np.exp(-0.5*(y**2))*height_0
+    height_0 = 1.0/sigma_0/np.sqrt(2.0*np.pi)
+    pdf_0 = np.exp(-0.5*((y-mu_0)/sigma_0)**2)*height_0
 
     # at t=T
     height_M = 1.0/std_M/np.sqrt(2.0*np.pi)
@@ -39,10 +39,8 @@ def OU_forward(beta, sigma, T, N, M):
     print('std = ', std_M)
     print('')
     print('Theoretical results:')
-    print('Theoretical meam = ', 0.0)
-    sigma_T_square = np.exp(-2.0*beta*T)+ (1-np.exp(-2.0*beta*T))*(sigma**2)/(2.0*beta)
-    sigma_T = np.sqrt(sigma_T_square)
-    print('Theoretical std = ', sigma_T)
+    print('Theoretical meam = ', theo_mean)
+    print('Theoretical std = ', theo_std)
 
     f, (a2, a0, a1) = plt.subplots(1, 3, figsize=(10, 3), gridspec_kw={'width_ratios': [1, 10, 1]})
     for ii in sample(range(N), 20):
@@ -80,7 +78,7 @@ def OU_forward(beta, sigma, T, N, M):
     f.tight_layout()
     plt.show()
     
-def OU_reverse(beta, sigma, sigma_T, T, N, M):
+def OU_reverse(beta, sigma, mu_0, sigma_0, mean_T, sigma_T, T, N, M):
     dt = T/M
     time = np.linspace(0, T, M+1)
 
@@ -88,13 +86,16 @@ def OU_reverse(beta, sigma, sigma_T, T, N, M):
     Y_0 = np.zeros((N, M+1))
 
     # sample initial condition from N(0, 1)
-    Y_0[:,M] = sigma_T*np.random.randn(N)
+    Y_0[:,M] = sigma_T*np.random.randn(N)+mean_T
 
     # iteration
     for ii in range(M):
         tk = (M-ii)*dt
-        sigma_tk_square = np.exp(-2.0*beta*tk)+ (1-np.exp(-2.0*beta*tk))*(sigma**2)/(2.0*beta)
-        Y_0[:, M-ii-1] = Y_0[:, M-ii] + (-dt)*( -beta + (sigma**2)/sigma_tk_square)*Y_0[:, M-ii] + sigma*np.sqrt(dt)*np.random.randn(N)
+        sigma_tk_square = np.exp(-2.0*beta*tk)*(sigma_0**2)+ (1-np.exp(-2.0*beta*tk))*(sigma**2)/(2.0*beta)
+        mt = np.exp(-beta*tk)*mu_0
+        score = -(Y_0[:, M-ii] - mt)/sigma_tk_square
+        Y_0[:, M-ii-1] = Y_0[:, M-ii] + (-dt)*( -beta*Y_0[:, M-ii] - (sigma**2)*score)
+        Y_0[:, M-ii-1] = Y_0[:, M-ii-1] + sigma*np.sqrt(dt)*np.random.randn(N)
 
     # maximum likelihood estimation at t= 0
     mean_0 = np.mean(Y_0[:, 0])
@@ -111,17 +112,17 @@ def OU_reverse(beta, sigma, sigma_T, T, N, M):
     height_M = 1.0/sigma_T/np.sqrt(2.0*np.pi)
     pdf_M = np.exp(-0.5*(y/sigma_T)**2)*height_M
 
-    print('The right panel shows the initial sampling at Y(t=T).')
+    print('The right panel shows the initial sampling at X(t=T).')
     print('')
 
-    print('The left panel shows the results at Y(t=0) and its maximum likelihood estimation (MLE).')
+    print('The left panel shows the results at X(t=0) and its maximum likelihood estimation (MLE).')
     print('MLE:')
     print('meam = ', mean_0)
     print('std = ', std_0)
     print('')
     print('Theoretical results')
-    print('Theoretical meam = ', 0.0)
-    print('Theoretical std = ', 1.0)
+    print('Theoretical meam = ', mu_0)
+    print('Theoretical std = ', sigma_0)
 
     f, (a2, a0, a1) = plt.subplots(1, 3, figsize=(10, 3), gridspec_kw={'width_ratios': [1, 10, 1]})
     for ii in sample(range(N), 20):
@@ -158,21 +159,26 @@ def OU_reverse(beta, sigma, sigma_T, T, N, M):
     f.tight_layout()
     plt.show()
 
-def OU_reverse_ODE(beta, sigma, T, N, M):
+def OU_reverse_ODE(beta, sigma, mu_0, sigma_0, mean_inf, sigma_inf, T, N, M):
     dt = T/M
     time = np.linspace(0, T, M+1)
+    
+    N=20
 
     # Euler-Maruyama method:
     Y_0 = np.zeros((N, M+1))
 
     # sample initial condition from N(0, 1)
-    Y_0[:,M] = np.linspace(-10, 10, N)
+    Y_0[:,M] = np.linspace(-5, 5, N)
+    #Y_0[:,M] = sigma_inf*np.random.randn(N)
 
     # iteration
     for ii in range(M):
         tk = (M-ii)*dt
-        sigma_tk_square = np.exp(-2.0*beta*tk)+ (1-np.exp(-2.0*beta*tk))*(sigma**2)/(2.0*beta)
-        Y_0[:, M-ii-1] = Y_0[:, M-ii] + (-dt)*( -beta + (sigma**2)/(2.0*sigma_tk_square))*Y_0[:, M-ii]
+        sigma_tk_square = np.exp(-2.0*beta*tk)*(sigma_0**2)+ (1-np.exp(-2.0*beta*tk))*(sigma**2)/(2.0*beta)
+        mt = np.exp(-beta*tk)*mu_0
+        score = -(Y_0[:, M-ii] - mt)/sigma_tk_square
+        Y_0[:, M-ii-1] = Y_0[:, M-ii] + (-dt)*( -beta*Y_0[:, M-ii] - sigma**2*score/2.0) 
 
     f, a0 = plt.subplots(1, 1, figsize=(10, 3))
     for ii in range(N):
